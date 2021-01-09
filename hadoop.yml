@@ -1,0 +1,102 @@
+- hosts: namenode
+  tasks: 
+  - copy: 
+     src: "jdk-8u171-linux-x64.rpm" 
+     dest: "/root/"
+
+  - copy: 
+      src: "hadoop-1.2.1-1.x86_64.rpm"
+      dest: "/root/"
+  - shell: java -version 2>&1 | grep version | awk '{print $3}' | sed 's/"//g'
+    register: java_version
+
+  - command: "rpm -ivh jdk-8u171-linux-x64.rpm"
+    when: java_version.stdout != "1.8.0_171"
+
+  - command: "hadoop version"
+    register: hadoop_version
+
+  - command: "rpm -ivh hadoop-1.2.1-1.x86_64.rpm"
+    when:  hadoop_version.stdout_lines[0] != "Hadoop 1.2.1"
+
+  - template: 
+      src: "name_node/core-site.xml.j2"
+      dest: "/etc/hadoop/core-site.xml"
+
+  - template:
+      src: "name_node/hdfs-site.xml.j2"
+      dest: "/etc/hadoop/hdfs-site.xml"
+
+  - command: "ls -l /nn"
+    register: folder_status
+    ignore_errors: yes
+  - file: 
+      path: "/nn"
+      state: directory
+    when: folder_status.rc != 0
+  - command: "ls -l /nn/current/VERSION"
+    register: version_status
+    ignore_errors: yes
+  - shell: "echo Y | hadoop namenode -format"
+    when: version_status.rc != 0
+
+  - shell: "jps | grep NameNode"
+    register: namenode_status
+    ignore_errors: yes
+
+  - command: "hadoop-daemon.sh start namenode"
+    when: namenode_status.rc != 0
+
+  
+
+  
+  
+
+- hosts: datanode
+  tasks:
+  - copy:
+     src: "jdk-8u171-linux-x64.rpm"
+     dest: "/root/"
+
+  - copy:
+      src: "hadoop-1.2.1-1.x86_64.rpm"
+      dest: "/root/"
+  - shell: java -version 2>&1 | grep version | awk '{print $3}' | sed 's/"//g'
+    register: java_version
+
+  - command: "rpm -ivh jdk-8u171-linux-x64.rpm"
+    when: java_version.stdout != "1.8.0_171"
+
+  - command: "hadoop version"
+    register: hadoop_version
+    ignore_errors: yes
+  - debug: 
+      var: hadoop_version
+  - command: "rpm -ivh hadoop-1.2.1-1.x86_64.rpm --force"
+    when:  hadoop_version.rc != 0
+
+  - template:
+      src: "data_node/core-site.xml.j2"
+      dest: "/etc/hadoop/core-site.xml"
+
+  - template:
+      src: "data_node/hdfs-site.xml.j2"
+      dest: "/etc/hadoop/hdfs-site.xml"
+
+  - command: "ls -l /dn"
+    register: folder_status
+    ignore_errors: yes
+  - file:
+      path: "/dn"
+      state: directory
+    when: folder_status.rc != 0
+
+  - shell: "jps | grep DataNode"
+    register: datanode_status
+    ignore_errors: yes
+
+  - command: "hadoop-daemon.sh start datanode"
+    when: datanode_status.rc != 0
+
+  
+
